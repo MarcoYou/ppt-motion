@@ -1,0 +1,25 @@
+{
+  "name": "ppt-motion",
+  "owner": {
+    "name": "MarcoYou"
+  },
+  "metadata": {
+    "description": "PPT Motion: source-preserving HTML presentations from existing decks.",
+    "version": "0.4.0"
+  },
+  "plugins": [
+    {
+      "name": "ppt-motion",
+      "source": "./",
+      "description": "Turn existing PDF and PowerPoint slides into portable HTML with selective motion.",
+      "version": "0.4.0",
+      "author": {
+        "name": "MarcoYou"
+      },
+      "homepage": "https://github.com/MarcoYou/ppt-motion",
+      "repository": "https://github.com/MarcoYou/ppt-motion",
+      "category": "productivity",
+      "keywords": ["presentation", "powerpoint", "pdf", "animation", "html"]
+    }
+  ]
+}

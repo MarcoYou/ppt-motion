@@ -1,0 +1,12 @@
+{
+  "name": "ppt-motion",
+  "version": "0.4.0",
+  "description": "Preserve existing PDF and PowerPoint slide design while adding selective, meaningful motion in portable HTML.",
+  "author": {
+    "name": "MarcoYou"
+  },
+  "homepage": "https://github.com/MarcoYou/ppt-motion",
+  "repository": "https://github.com/MarcoYou/ppt-motion",
+  "keywords": ["presentation", "powerpoint", "pdf", "animation", "html"],
+  "skills": "./skill/"
+}

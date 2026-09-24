@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import collections
 import copy
 import hashlib
@@ -21,7 +22,7 @@ from lxml import etree as ET
 
 from svg_geometry import SVG, NUM, svg_geometry, trans, mul
 
-VERSION = '0.3.0'
+VERSION = '0.4.0'
 ASSETS = Path(__file__).resolve().parents[1] / 'assets'
 KINDS = {'fade', 'tile', 'bar-x', 'bar-y', 'line', 'star', 'wipe', 'radial'}
 PARSER = ET.XMLParser(resolve_entities=False, no_network=True, huge_tree=False)
@@ -492,8 +493,8 @@ def build_job(args):
     print(json.dumps({'output': str(out), 'slides': reports, 'geometryCheck': 'passed'}, ensure_ascii=False))
 
 
-def check_job(args):
-    job, config, inventory = load_job(args.job)
+def validated_build(job_path):
+    job, config, inventory = load_job(job_path)
     out = job / 'dist'
     manifest = read_json(out / 'build-manifest.json')
     if manifest['configSha256'] != digest(job / 'deck.json') or manifest['sourceLockSha256'] != digest(job / 'source-lock.json'):
@@ -502,7 +503,57 @@ def check_job(args):
         if not (out / relative).is_file() or digest(out / relative) != expected:
             fail(f'Built artifact changed: {relative}')
     verify_geometry(job, config, inventory, out)
+    return job, config, manifest
+
+
+def check_job(args):
+    job, config, _ = validated_build(args.job)
     print(json.dumps({'status': 'passed', 'slides': len(config['slides']), 'checks': ['source hashes', 'extraction hashes', 'config hash', 'artifact hashes', 'source geometry and paint order'], 'visualReview': 'Review the browser comparison and animation start/mid/end separately.'}))
+
+
+def export_html(args):
+    """Bundle a verified build into one browser-openable file, without fetches."""
+    job, config, manifest = validated_build(args.job)
+    out = job / 'dist'
+    target = Path(args.out).expanduser().resolve()
+    if target.suffix.lower() != '.html':
+        fail('--out must end in .html')
+    for managed in ('source', 'extracted', 'reference', 'dist', 'history'):
+        if target.is_relative_to(job / managed):
+            fail('Export outside managed source/build directories, for example JOB/presentation.html')
+    if target.exists():
+        fail(f'Output already exists: {target}; choose a new filename')
+    deck = read_json(out / 'deck.json')
+    assets = {}
+    for slide in deck['slides']:
+        for key in ('svg', 'reference'):
+            relative = slide[key]
+            path = (out / relative).resolve()
+            if relative not in manifest['files'] or not path.is_relative_to(out):
+                fail(f'Asset is not part of the verified build: {relative}')
+            assets[relative] = (path.read_text(encoding='utf-8') if key == 'svg'
+                                else 'data:image/png;base64,' + base64.b64encode(path.read_bytes()).decode('ascii'))
+    bundle = json.dumps({'version': 1, 'deck': deck, 'assets': assets}, ensure_ascii=False)
+    # JSON inside a script element must not contain an HTML closing tag, even
+    # when it came from a harmless title, SVG label, or presentation message.
+    bundle = bundle.replace('<', '\\u003c').replace('>', '\\u003e').replace('&', '\\u0026').replace('\u2028', '\\u2028').replace('\u2029', '\\u2029')
+    html = (out / 'index.html').read_text(encoding='utf-8')
+    css = (out / 'viewer.css').read_text(encoding='utf-8')
+    js = (out / 'viewer.js').read_text(encoding='utf-8')
+    if '</style' in css.lower() or '</script' in js.lower():
+        fail('Viewer assets contain unsupported closing HTML tags')
+    css_tag = '<link rel="stylesheet" href="viewer.css">'
+    js_tag = '<script src="viewer.js" defer></script>'
+    if css_tag not in html or js_tag not in html or '</body>' not in html or 'ppt-motion-bundle' not in js:
+        fail('This build does not support standalone export; run build with the current version')
+    html = html.replace(css_tag, '<style>\n' + css + '\n</style>').replace(js_tag, '')
+    html = html.replace('</body>', '<script id="ppt-motion-bundle" type="application/json">' + bundle
+                        + '</script>\n<script>\n' + js + '\n</script>\n</body>')
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with target.open('x', encoding='utf-8') as handle:
+        handle.write(html)
+    print(json.dumps({'output': str(target), 'slides': len(config['slides']), 'bytes': target.stat().st_size,
+                      'sha256': digest(target), 'standalone': True, 'geometryCheck': 'passed'}, ensure_ascii=False))
 
 
 def inspect_job(args):
@@ -658,6 +709,10 @@ def main():
     p.add_argument('--pptx', required=True)
     p.add_argument('--out', required=True, help='New PDF path; never overwrites an existing file')
     p.set_defaults(run=export_pdf)
+    p = subs.add_parser('export-html', help='Export a checked build as a single HTML file, with all assets embedded')
+    p.add_argument('job')
+    p.add_argument('--out', required=True, help='New .html path; never overwrites an existing file')
+    p.set_defaults(run=export_html)
     p = subs.add_parser('plan', help='Create a reviewable plan with title/text/table/chart regions')
     p.add_argument('job')
     p.add_argument('--out', help='New plan file; an existing plan is never overwritten')

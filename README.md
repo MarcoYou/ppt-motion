@@ -2,7 +2,7 @@
 
 **기존 PPT/PDF의 디자인을 유지하면서, 차트와 핵심 메시지에 필요한 모션만 더하는 HTML 발표자료 제작 도구입니다.**
 
-제목·짧은 글·표·차트가 많은 연구·업무·교육 자료에 사용할 수 있습니다. 원본 PDF의 글꼴과 도형을 SVG로 보존하고, 선택한 요소에 효과를 적용합니다. Codex 스킬과 독립 실행 가능한 Python CLI를 함께 제공합니다.
+제목·짧은 글·표·차트가 많은 연구·업무·교육 자료에 사용할 수 있습니다. 원본 PDF의 글꼴과 도형을 SVG로 보존하고, 선택한 요소에 효과를 적용합니다. Codex 스킬, Claude Code 플러그인, Claude Desktop 업로드용 스킬과 독립 실행 가능한 Python CLI를 제공합니다.
 
 > 결과물은 브라우저에서 재생하는 HTML 발표자료입니다. 원본 PPTX에 PowerPoint 네이티브 애니메이션을 삽입하는 도구는 아닙니다.
 
@@ -26,36 +26,77 @@
 
 ## 설치
 
-Python **3.11 이상**이 필요합니다. 필수 패키지는 PyMuPDF와 lxml입니다.
+[최신 릴리스](https://github.com/MarcoYou/ppt-motion/releases/latest)에서 사용 중인 앱에 맞는 ZIP을 받을 수 있습니다. 모두 같은 엔진과 모션 규칙을 사용합니다.
+
+| 환경 | 설치 방법 | 사용 방법 |
+|---|---|---|
+| Codex | Codex ZIP을 풀고 `python3 install.py --client codex` | `$ppt-motion`과 파일 경로로 요청 |
+| Claude Code | 아래 마켓플레이스 명령 또는 설치 스크립트 | `/ppt-motion:ppt-motion` |
+| Claude Desktop | Desktop ZIP을 스킬 설정에서 업로드 | PDF를 첨부하고 PPT Motion으로 작업 요청 |
+| 독립 CLI | 저장소 복제 후 `python3 ppt-motion` | 아래 CLI 작업 흐름 |
+
+### Codex
+
+Python **3.11 이상**이 필요합니다. ZIP 대신 저장소를 복제해도 됩니다.
 
 ```sh
 git clone https://github.com/MarcoYou/ppt-motion.git
 cd ppt-motion
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r skill/ppt-motion/scripts/requirements.txt
-./ppt-motion --version
+python3 install.py --client codex
 ```
 
-위 명령은 macOS/Linux 기준입니다. Windows에서는 `.venv\Scripts\Activate.ps1`로 가상환경을 활성화하고, `./ppt-motion` 대신 `python skill/ppt-motion/scripts/ppt_motion.py`를 사용하면 됩니다.
-
-### Codex 스킬로 등록
-
-저장소 루트에서 다음 명령을 실행합니다. 같은 이름의 스킬이 이미 있으면 덮어쓰지 않고 오류가 나므로 기존 위치를 먼저 확인하세요.
-
-```sh
-PPT_MOTION_REPO="$(pwd)"
-mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
-ln -s "$PPT_MOTION_REPO/skill/ppt-motion" "${CODEX_HOME:-$HOME/.codex}/skills/ppt-motion"
-```
-
-심볼릭 링크를 쓰기 어려운 환경에서는 `skill/ppt-motion/` 폴더를 Codex의 `skills/ppt-motion/`으로 복사할 수 있습니다. 스킬 실행 시에도 위 Python 의존성이 설치된 환경을 사용하세요.
-
-Codex에 파일 경로와 함께 요청합니다.
+설치기는 스킬을 `${CODEX_HOME:-~/.codex}/skills/ppt-motion`에 복사하고, PyMuPDF·lxml의 지정 버전을 별도 캐시 가상환경에 준비합니다. 시스템 Python 패키지는 변경하지 않습니다. 처음 준비할 때는 패키지 다운로드가 필요하며 이후 실행은 해당 런타임을 재사용합니다. 설치 후 앱을 다시 열거나 새 작업에서 스킬을 확인하세요.
 
 > $ppt-motion 이 PPTX와 PDF를 발표용으로 만들어줘. 디자인과 페이지 순서는 유지하고, 막대는 영점에서 성장, 선은 경로 그리기, 도넛은 원 둘레를 따라 색이 채워지게 해줘. 표와 제목은 읽기 편하게 유지해줘.
 
 > $ppt-motion 이 PDF 앞 11페이지만 처리해줘. 각 장의 핵심 메시지에 맞춰 강조하고, 장식 요소는 움직이지 마.
+
+### Claude Code
+
+Claude Code에서 다음을 실행합니다.
+
+```text
+/plugin marketplace add MarcoYou/ppt-motion
+/plugin install ppt-motion@ppt-motion
+```
+
+설치 후 다음처럼 호출합니다. 로컬 Python **3.11 이상**이 필요하며, 첫 작업에서 스킬 런타임을 준비합니다.
+
+```text
+/ppt-motion:ppt-motion /path/deck.pdf 앞 11페이지만 모션을 넣어줘. 원본 디자인은 유지하고 도넛은 원 둘레를 따라 색이 채워지게 해줘.
+```
+
+플러그인 대신 개인 스킬 폴더에 직접 설치할 수도 있습니다. 이 방식의 호출 이름은 `/ppt-motion`입니다. 두 방식 중 하나를 선택하면 됩니다.
+
+```sh
+python3 install.py --client claude-code
+```
+
+이 명령은 `~/.claude/skills/ppt-motion`에 설치합니다. ZIP 플러그인을 로컬에서 확인하려면 [Claude Code ZIP](https://github.com/MarcoYou/ppt-motion/releases/latest/download/ppt-motion-claude-code.zip)을 풀고 `claude --plugin-dir /path/to/ppt-motion`을 실행하세요. 설치 형식은 [Claude Code 플러그인 문서](https://code.claude.com/docs/en/plugins)와 [마켓플레이스 문서](https://code.claude.com/docs/en/plugin-marketplaces)를 따릅니다.
+
+### Claude Desktop
+
+1. [Desktop 스킬 ZIP](https://github.com/MarcoYou/ppt-motion/releases/latest/download/ppt-motion-claude-desktop.zip)을 받습니다. ZIP을 풀지 않고 업로드합니다.
+2. Claude의 **Customize → Skills**에서 업로드 메뉴로 ZIP을 추가하고 활성화합니다.
+3. **코드 실행 및 파일 생성**을 사용할 수 있는 환경에서 PDF를 대화에 첨부하고, “PPT Motion으로 앞 11페이지만 애니메이션 발표자료로 만들어줘”라고 요청합니다.
+4. 결과로 받은 HTML 파일을 내려받아 브라우저에서 엽니다. 서버를 켤 필요가 없습니다.
+
+Desktop 버전은 **사용자 지정 스킬**입니다. MCP 확장 파일(`.mcpb`)이 아닙니다. Claude의 실행 환경에서 첨부 파일을 처리하므로 Mac의 `/Users/...` 경로만 전달하면 로컬 파일을 읽을 수 없습니다. PPTX만 첨부했고 PDF 변환 도구가 없는 환경이라면, PowerPoint에서 내보낸 PDF도 첨부하세요. 필수 Python 패키지가 없으면 다운로드 가능한 실행 환경이 필요합니다.
+
+앱 버전·계정·조직 설정에 따라 스킬 또는 코드 실행 메뉴의 가용성이 다를 수 있습니다. [Anthropic 사용자 지정 스킬 안내](https://support.claude.com/en/articles/12512198-how-to-create-custom-skills)를 참고하세요.
+
+### 업데이트와 다른 설치 위치
+
+```sh
+git pull
+python3 install.py --client codex
+# 임의 위치에 설치하거나 런타임 준비를 나중으로 미루기
+python3 install.py --client claude-code --skills-dir /path/to/skills --skip-runtime
+```
+
+설치기가 관리하는 수정되지 않은 스킬은 업데이트할 수 있습니다. 기존 스킬이 별도 설치본이거나 사용자가 수정했다면 덮어쓰지 않습니다. 교체하려는 경우에만 `--force`를 사용하며, 기존 폴더 또는 심볼릭 링크는 백업합니다. `--skip-runtime`으로 설치한 경우 첫 실행에서 의존성을 준비합니다. 캐시 위치는 `PPT_MOTION_RUNTIME_ROOT`로 지정할 수 있습니다. 오프라인 설치에는 준비된 캐시 또는 `PIP_NO_INDEX=1`, `PIP_FIND_LINKS`로 지정한 호환 wheel 저장소가 필요합니다.
+
+Windows에서는 명령의 `python3`를 설치된 `python` 또는 `py -3`으로 바꾸세요. 아래 `./ppt-motion` 명령은 모든 환경에서 `python3 ppt-motion`으로 실행할 수 있습니다.
 
 ## 파일 준비
 
@@ -87,18 +128,21 @@ LibreOffice가 설치되어 있으면 별도 PDF로 변환할 수 있습니다. 
 ./ppt-motion build ../motion-jobs/demo
 ./ppt-motion check ../motion-jobs/demo
 
-# 5. 로컬 브라우저에서 확인
+# 5. 서버 없이 열 수 있는 단일 HTML로 내보내기
+./ppt-motion export-html ../motion-jobs/demo --out ../presentation.html
+
+# 선택: 편집 중 로컬 미리보기
 ./ppt-motion serve ../motion-jobs/demo --port 4319
 ```
 
-`http://127.0.0.1:4319/`를 엽니다. 서버는 해당 컴퓨터에서만 접근할 수 있습니다. 종료는 `Ctrl-C`입니다.
+`presentation.html`은 다운로드하거나 복사해서 바로 열 수 있습니다. 기존 파일을 덮어쓰지 않으므로 다시 내보낼 때는 새 이름을 사용하세요. `serve`를 실행한 경우에는 `http://127.0.0.1:4319/`를 엽니다. 서버는 해당 컴퓨터에서만 접근할 수 있습니다. 종료는 `Ctrl-C`입니다.
 
 - 일부 페이지: `init`에 `--pages 1-11` 또는 `--pages 1,3-5` 추가.
 - `research`: 모든 요소를 정적으로 시작하고 필요한 효과만 선택.
 - `explain`: PPTX와 연결된 긴 본문에 짧은 페이드 적용. 제목·표·불확실한 PDF 텍스트는 유지.
 - `static`: 효과 없이 원형을 확인하는 출발점.
 
-계획 생성만으로 차트가 자동 애니메이션화되지는 않습니다. Codex 또는 사용자가 원본을 보고 정확한 요소와 메시지를 선택해야 합니다. [객체별 작업법](skill/ppt-motion/references/object-workflow.md)과 [세부 설정](skill/ppt-motion/references/configuration.md)에 예시가 있습니다.
+계획 생성만으로 차트가 자동 애니메이션화되지는 않습니다. 에이전트 또는 사용자가 원본을 보고 정확한 요소와 메시지를 선택해야 합니다. [객체별 작업법](skill/ppt-motion/references/object-workflow.md)과 [세부 설정](skill/ppt-motion/references/configuration.md)에 예시가 있습니다.
 
 ## 발표 도구
 
@@ -110,7 +154,7 @@ LibreOffice가 설치되어 있으면 별도 PDF로 변환할 수 있습니다. 
 - 요소 선택으로 정확한 ID와 좌표 확인
 - 운영체제의 동작 줄이기 설정 지원
 
-`dist/`에는 외부 글꼴·스크립트 없이 동작하는 정적 웹 파일이 생성됩니다. `file://`로 직접 열기보다는 위 로컬 서버 또는 정적 호스팅을 사용하세요. 호스팅 배포는 별도 작업입니다.
+`export-html`은 슬라이드·원본 비교 이미지·CSS·JavaScript를 모두 포함한 단일 HTML을 만듭니다. 외부 서버나 글꼴·스크립트 다운로드 없이 열 수 있습니다. 편집용 `dist/`는 여러 파일로 구성되어 로컬 서버 또는 정적 호스팅을 사용합니다. 호스팅 배포는 별도 작업입니다.
 
 ## 반복 수정과 검증
 
@@ -122,9 +166,12 @@ LibreOffice가 설치되어 있으면 별도 PDF로 변환할 수 있습니다. 
 
 ## 예제와 테스트
 
-개인 발표자료 없이 생성한 가상 데이터로 테스트합니다.
+개인 발표자료 없이 생성한 가상 데이터로 테스트합니다. 아래 테스트 명령은 ZIP 설치본이 아닌 Git으로 복제한 저장소에서 실행합니다.
 
 ```sh
+python3 -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\Activate.ps1
+python -m pip install -r skill/ppt-motion/scripts/requirements.txt
 python -m unittest discover -s tests -v
 ```
 
@@ -139,12 +186,22 @@ python examples/make_generic_demo.py --out ../motion-demo-source
 
 예제 PDF는 직접 그린 디자인 기준이며, PPTX를 PowerPoint에서 내보낸 결과와 동일하다고 보장하지 않습니다. 검증 범위는 [QA.md](QA.md)에 정리했습니다.
 
+릴리스 패키지를 다시 만들려면 저장소 루트에서 다음 명령을 실행합니다. 결과는 `dist/releases/`의 세 ZIP과 `SHA256SUMS`이며, 공개할 파일만 명시적으로 포함합니다.
+
+```sh
+python3 scripts/package_release.py
+```
+
 ## 저장소 구조
 
 ```text
-ppt-motion                     CLI 진입점
+ppt-motion                     CLI 진입점 (자동 런타임 준비)
+install.py                     Codex / Claude Code 스킬 설치
+.claude-plugin/                Claude Code 플러그인·마켓플레이스
+clients/claude-desktop/        Desktop 업로드 스킬 지침
+scripts/package_release.py    세 환경용 ZIP·체크섬 생성
 skill/ppt-motion/
-  SKILL.md                     Codex 작업 지침
+  SKILL.md                     공통 작업 지침
   scripts/                     추출·계획·빌드·검증
   assets/                      HTML/SVG 발표 뷰어
   references/                  유형별 모션과 설정 문서

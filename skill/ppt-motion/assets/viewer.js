@@ -6,6 +6,7 @@
   const $ = id => document.getElementById(id);
   const media = matchMedia('(prefers-reduced-motion: reduce)');
   const cache = new Map();
+  let bundled = null;
   const ui = Object.fromEntries(['stage', 'workbench', 'reference', 'caption', 'notice', 'inspector', 'previous', 'next', 'replay', 'motion', 'emphasis', 'inspect', 'compare', 'fullscreen', 'slide-select'].map(id => [id, $(id)]));
   let deck, current = 0, serial = 0, generation = 0, svg = null;
   let effects = [], active = [], motion = true, emphasis = true, inspect = false, compare = false, selected = null;
@@ -253,6 +254,22 @@
     if (url.origin !== location.origin || !['http:','https:','file:'].includes(url.protocol)) throw new Error('자료 경로는 같은 사이트의 파일이어야 합니다.');
     return url.href;
   }
+  function bundledAsset(path) {
+    if (!Object.hasOwn(bundled.assets, path) || typeof bundled.assets[path] !== 'string') throw new Error('포함된 자료 파일을 찾지 못했습니다.');
+    return bundled.assets[path];
+  }
+  function referenceAsset(path) {
+    if (!bundled) return safeAsset(path);
+    const source = bundledAsset(path);
+    if (!/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(source)) throw new Error('포함된 원본 이미지 형식이 올바르지 않습니다.');
+    return source;
+  }
+  async function svgAsset(path) {
+    if (bundled) return bundledAsset(path);
+    const response = await fetch(safeAsset(path));
+    if (!response.ok) throw new Error(`SVG를 읽지 못했습니다 (${response.status}).`);
+    return response.text();
+  }
   function importSvg(text) {
     const documentSvg = new DOMParser().parseFromString(text,'image/svg+xml');
     const root = documentSvg.documentElement;
@@ -279,15 +296,15 @@
     ui.caption.hidden = !slide.message;
     $('current-label').textContent = `발표 화면 · ${current+1} / ${deck.slides.length}`;
     ui.reference.alt = `${slide.title || `슬라이드 ${current+1}`} · 원본 PDF`;
-    ui.reference.src = safeAsset(slide.reference);
-    if (updateHash) history.replaceState(null,'',`#slide=${current+1}`);
+    if (updateHash) {
+      try { history.replaceState(null,'',`#slide=${current+1}`); }
+      catch { /* Some local-file viewers disallow history updates. */ }
+    }
     updateControls(); fit();
     try {
-      const url = safeAsset(slide.svg);
-      if (!cache.has(url)) cache.set(url,fetch(url).then(response=>{
-        if (!response.ok) throw new Error(`SVG를 읽지 못했습니다 (${response.status}).`);
-        return response.text();
-      }).catch(error=>{cache.delete(url);throw error;}));
+      ui.reference.src = referenceAsset(slide.reference);
+      const url = slide.svg;
+      if (!cache.has(url)) cache.set(url,svgAsset(url).catch(error=>{cache.delete(url);throw error;}));
       const source = await cache.get(url);
       if (token !== generation) return;
       svg = importSvg(source);
@@ -365,10 +382,18 @@
   new ResizeObserver(fit).observe($('current-wrapper'));
   window.addEventListener('pagehide',()=>{generation++;stop();});
 
-  fetch('deck.json').then(response=>{
-    if(!response.ok)throw new Error(`deck.json을 읽지 못했습니다 (${response.status}).`);
+  async function loadDeck() {
+    const embedded = $('ppt-motion-bundle');
+    if (embedded) {
+      bundled = JSON.parse(embedded.textContent);
+      if (bundled?.version !== 1 || !bundled.assets || typeof bundled.assets !== 'object') throw new Error('HTML 자료 묶음의 형식이 올바르지 않습니다.');
+      return bundled.deck;
+    }
+    const response = await fetch('deck.json');
+    if (!response.ok) throw new Error(`deck.json을 읽지 못했습니다 (${response.status}).`);
     return response.json();
-  }).then(value=>{
+  }
+  loadDeck().then(value=>{
     if(!Array.isArray(value.slides) || !value.slides.length)throw new Error('표시할 슬라이드가 없습니다.');
     if(value.slides.some(slide=>!(Number(slide.width)>0 && Number(slide.height)>0) || !slide.svg || !slide.reference))throw new Error('슬라이드 크기 또는 파일 경로가 올바르지 않습니다.');
     deck=value;
@@ -380,5 +405,5 @@
       ui['slide-select'].append(option);
     });
     return mount(hashIndex());
-  }).catch(error=>announce(`${error.message} 로컬 서버로 열었는지 확인해 주세요.`,0));
+  }).catch(error=>announce(`${error.message} ${$('ppt-motion-bundle') ? 'HTML 파일을 다시 내보내 주세요.' : '로컬 서버로 열었는지 확인해 주세요.'}`,0));
 })();

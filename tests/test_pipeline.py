@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import contextlib
 import copy
 import importlib.util
@@ -119,6 +120,48 @@ class PipelineTest(unittest.TestCase):
             'emphasis':[{'kind':'outline','box':[80,120,270,395],'color':'#ff0000'}],
         })
         save(self.job/'deck.json',self.config)
+
+    def test_standalone_html_preserves_assets_and_escapes_embedded_text(self):
+        self.configure()
+        self.config['title'] = '한글 </script><script>alert(1)</script> & title'
+        self.config['slides'][0]['message'] = 'Literal <text> with \u2028 and \u2029.'
+        save(self.job/'deck.json', self.config)
+        self.run_cli('build', self.job)
+        destination = self.root/'portable slide.html'
+        result = self.run_cli('export-html', self.job, '--out', destination)
+        self.assertTrue(result['standalone'])
+        self.assertEqual(result['sha256'], sha(destination))
+        html = ET.HTML(destination.read_bytes())
+        self.assertEqual(len(html.xpath('//script')), 2)
+        self.assertEqual(html.xpath('//script/@src | //link[@rel="stylesheet"]/@href'), [])
+        bundle = json.loads(html.xpath('//script[@id="ppt-motion-bundle"]')[0].text)
+        self.assertEqual(bundle['deck'], load(self.job/'dist/deck.json'))
+        for slide in bundle['deck']['slides']:
+            self.assertEqual(bundle['assets'][slide['svg']], (self.job/'dist'/slide['svg']).read_text(encoding='utf-8'))
+            encoded = bundle['assets'][slide['reference']].split(',', 1)[1]
+            self.assertEqual(base64.b64decode(encoded), (self.job/'dist'/slide['reference']).read_bytes())
+        self.run_cli('check', self.job)
+
+    def test_standalone_export_refuses_stale_tampered_or_existing_output(self):
+        self.run_cli('build', self.job)
+        destination = self.root/'presentation.html'
+        self.run_cli('export-html', self.job, '--out', destination)
+        original = destination.read_bytes()
+        self.run_cli('export-html', self.job, '--out', destination, failure='already exists')
+        self.assertEqual(destination.read_bytes(), original)
+        self.config['slides'][0]['message'] = 'Changed after build'
+        save(self.job/'deck.json', self.config)
+        self.run_cli('export-html', self.job, '--out', self.root/'stale.html', failure='stale')
+        self.assertFalse((self.root/'stale.html').exists())
+        self.run_cli('build', self.job)
+        (self.job/'dist/viewer.css').write_text('modified', encoding='utf-8')
+        self.run_cli('export-html', self.job, '--out', self.root/'tampered.html', failure='artifact changed')
+        self.assertFalse((self.root/'tampered.html').exists())
+
+    def test_standalone_export_stays_outside_managed_directories(self):
+        self.run_cli('build', self.job)
+        self.run_cli('export-html', self.job, '--out', self.job/'dist/presentation.html', failure='outside managed')
+        self.run_cli('export-html', self.job, '--out', self.root/'presentation.txt', failure='end in .html')
 
     def test_init_inspect_build_check_preserve_geometry_and_dimensions(self):
         self.assertEqual((self.inventory['width'], self.inventory['height']), (960,540))
