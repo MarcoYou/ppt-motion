@@ -5,14 +5,14 @@
   },
   "metadata": {
     "description": "PPT Motion: source-preserving HTML presentations from existing decks.",
-    "version": "0.4.0"
+    "version": "0.5.0"
   },
   "plugins": [
     {
       "name": "ppt-motion",
       "source": "./",
       "description": "Turn existing PDF and PowerPoint slides into portable HTML with selective motion.",
-      "version": "0.4.0",
+      "version": "0.5.0",
       "author": {
         "name": "MarcoYou"
       },

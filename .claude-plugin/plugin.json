@@ -1,6 +1,6 @@
 {
   "name": "ppt-motion",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Preserve existing PDF and PowerPoint slide design while adding selective, meaningful motion in portable HTML.",
   "author": {
     "name": "MarcoYou"

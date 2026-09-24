@@ -38,3 +38,9 @@ Generic variable dimensions, fit viewport; title, previous/next, slide select, r
 `export-html JOB --out FILE.html` requires a current verified build. It embeds `{version:1, deck, assets}` in an inert JSON script element, SVG assets as text, and reference PNGs as base64 data URLs. HTML-significant characters in the JSON are escaped. Viewer CSS and JavaScript are embedded and the viewer reads bundled assets without network fetches. The final motion and comparison behavior matches the multi-file viewer. Export never overwrites an existing file or writes into managed source/build directories.
 
 Claude Code loads the canonical `skill/` directory through `.claude-plugin/plugin.json`. Claude Desktop receives a ZIP with a top-level `ppt-motion/SKILL.md` tailored to uploaded inputs and downloadable output, sharing the same scripts, assets and motion references. `scripts/package_release.py` uses an explicit filename allowlist, deterministic ZIP metadata and SHA-256 checksums; source decks, private job folders, environment files and caches are excluded.
+
+## OpenAI plugin distribution (0.5)
+
+The repository retains a single canonical engine under `skill/ppt-motion`. A `.codex-plugin/plugin.json` compatibility manifest points to `./skill/`; `.agents/plugins/marketplace.json` loads the tagged GitHub release. Claude continues to use its own compatible marketplace metadata.
+
+`ppt-motion-openai-plugin.zip` maps the canonical skill into conventional `skills/ppt-motion/` at packaging time and includes portable root `plugin.json`, an OpenAI compatibility manifest, a logo and policy documents. It contains no MCP configuration, hooks, screenshots, credentials or user decks. Public directory review and publication are separate from publishing this GitHub archive.

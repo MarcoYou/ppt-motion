@@ -22,7 +22,7 @@ from lxml import etree as ET
 
 from svg_geometry import SVG, NUM, svg_geometry, trans, mul
 
-VERSION = '0.4.0'
+VERSION = '0.5.0'
 ASSETS = Path(__file__).resolve().parents[1] / 'assets'
 KINDS = {'fade', 'tile', 'bar-x', 'bar-y', 'line', 'star', 'wipe', 'radial'}
 PARSER = ET.XMLParser(resolve_entities=False, no_network=True, huge_tree=False)

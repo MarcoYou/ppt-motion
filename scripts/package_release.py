@@ -17,9 +17,12 @@ import tempfile
 import zipfile
 
 PROJECT = Path(__file__).resolve().parents[1]
-RELEASE_VERSION = "0.4.0"
+RELEASE_VERSION = "0.5.0"
 ARCHIVE_ROOT = "ppt-motion"
 FIXED_TIME = (2020, 1, 1, 0, 0, 0)
+PORTABLE_SCHEMA = "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
+PLUGIN_GIT_SOURCE = {"source": "url", "url": "https://github.com/MarcoYou/ppt-motion.git",
+                     "ref": f"v{RELEASE_VERSION}"}
 
 # Keep explicit filenames: globs and recursive directory copies can publish data.
 SKILL_FILES = (
@@ -45,13 +48,18 @@ COMMON_FILES = (
     "install.py",
     "ppt-motion",
     "examples/make_generic_demo.py",
+    "docs/usage.md",
 )
 OPTIONAL_NOTICE_FILES = ("LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md", "VERSION")
 CLAUDE_FILES = (".claude-plugin/plugin.json", ".claude-plugin/marketplace.json")
+CODEX_FILES = (".codex-plugin/plugin.json", ".agents/plugins/marketplace.json")
+PLUGIN_ASSETS = ("assets/ppt-motion.svg", "assets/ppt-motion.png",
+                 "docs/privacy.md", "docs/terms.md")
 ARCHIVES = (
     "ppt-motion-codex.zip",
     "ppt-motion-claude-code.zip",
     "ppt-motion-claude-desktop.zip",
+    "ppt-motion-openai-plugin.zip",
 )
 FORBIDDEN_PARTS = frozenset({
     ".git", ".env", ".venv", "venv", "__pycache__", "qa", "jobs", "dist",
@@ -107,13 +115,48 @@ def release_entries(root: Path) -> dict[str, dict[str, bytes]]:
     if "VERSION" in notices and notices["VERSION"].decode("utf-8").strip() != RELEASE_VERSION:
         raise ValueError("VERSION must match the release builder")
 
+    codex_manifests = {name: read_allowed(root, name) for name in CODEX_FILES}
+    plugin_assets = {name: read_allowed(root, name) for name in PLUGIN_ASSETS}
+    codex_plugin = json.loads(codex_manifests[".codex-plugin/plugin.json"])
+    codex_marketplace = json.loads(codex_manifests[".agents/plugins/marketplace.json"])
+    if (codex_plugin.get("name") != ARCHIVE_ROOT
+            or codex_plugin.get("version") != RELEASE_VERSION
+            or codex_plugin.get("skills") != "./skill/"):
+        raise ValueError("Codex plugin name/version/skills must match the canonical release")
+    codex_entries = codex_marketplace.get("plugins", [])
+    if (codex_marketplace.get("name") != ARCHIVE_ROOT or len(codex_entries) != 1
+            or codex_entries[0].get("name") != ARCHIVE_ROOT
+            or codex_entries[0].get("source") != PLUGIN_GIT_SOURCE
+            or codex_entries[0].get("policy") != {
+                "installation": "AVAILABLE", "authentication": "ON_INSTALL"}
+            or codex_entries[0].get("category") != "Productivity"):
+        raise ValueError("Codex marketplace must target this plugin's release tag")
+
+    # Portable Agent Plugins require skills/ and reject a custom skills field.
+    # Only this built artifact remaps the one canonical engine; no tracked copy.
+    portable = {"$schema": PORTABLE_SCHEMA,
+                **{key: codex_plugin[key] for key in (
+                    "name", "version", "description", "author", "homepage",
+                    "repository", "license", "keywords") if key in codex_plugin},
+                "extensions": {"com.openai": {"interface": codex_plugin["interface"]}}}
+    compatibility = {**codex_plugin, "skills": "./skills/"}
+    encode_json = lambda value: (json.dumps(value, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    openai = {
+        **notices,
+        **plugin_assets,
+        "plugin.json": encode_json(portable),
+        ".codex-plugin/plugin.json": encode_json(compatibility),
+        **{f"skills/ppt-motion/{name}": data for name, data in skill.items()},
+    }
+
     repo = {**common, **notices, **{f"skill/ppt-motion/{name}": data for name, data in skill.items()}}
     desktop = {**skill, **notices}
     desktop["SKILL.md"] = read_allowed(root, "clients/claude-desktop/SKILL.md")
     payloads = {
-        ARCHIVES[0]: repo,
+        ARCHIVES[0]: {**repo, **codex_manifests, **plugin_assets},
         ARCHIVES[1]: {**repo, **manifests},
         ARCHIVES[2]: desktop,
+        ARCHIVES[3]: openai,
     }
     return {archive: {f"{ARCHIVE_ROOT}/{name}": data for name, data in files.items()}
             for archive, files in payloads.items()}

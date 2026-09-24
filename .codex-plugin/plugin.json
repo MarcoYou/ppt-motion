@@ -1,0 +1,31 @@
+{
+  "name": "ppt-motion",
+  "version": "0.5.0",
+  "description": "Preserve existing PDF and PowerPoint slide design while adding selective, meaningful motion in portable HTML.",
+  "author": {
+    "name": "MarcoYou",
+    "url": "https://github.com/MarcoYou"
+  },
+  "homepage": "https://github.com/MarcoYou/ppt-motion",
+  "repository": "https://github.com/MarcoYou/ppt-motion",
+  "keywords": ["presentation", "powerpoint", "pdf", "animation", "html"],
+  "skills": "./skill/",
+  "interface": {
+    "displayName": "PPT Motion",
+    "shortDescription": "Add selective motion to existing presentations",
+    "longDescription": "Turn existing PDF and PowerPoint decks into portable HTML presentations while preserving typography, layout, charts, and tables. Add motion and emphasis to selected objects, then check the result against the original slides. Requires Python 3.11 or newer; dependencies are prepared on first use.",
+    "developerName": "MarcoYou",
+    "category": "Productivity",
+    "capabilities": ["Read", "Write"],
+    "websiteURL": "https://github.com/MarcoYou/ppt-motion",
+    "privacyPolicyURL": "https://github.com/MarcoYou/ppt-motion/blob/main/docs/privacy.md",
+    "termsOfServiceURL": "https://github.com/MarcoYou/ppt-motion/blob/main/docs/terms.md",
+    "composerIcon": "./assets/ppt-motion.png",
+    "logo": "./assets/ppt-motion.png",
+    "defaultPrompt": [
+      "Turn this deck into an animated HTML presentation.",
+      "Preserve these slides and emphasize the key message.",
+      "Make the charts move while keeping the tables readable."
+    ]
+  }
+}

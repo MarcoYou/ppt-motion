@@ -35,10 +35,12 @@ class ReleasePackageTest(unittest.TestCase):
         codex = self.payload("ppt-motion-codex.zip")
         code = self.payload("ppt-motion-claude-code.zip")
         desktop = self.payload("ppt-motion-claude-desktop.zip")
+        openai = self.payload("ppt-motion-openai-plugin.zip")
         for relative in packager.SKILL_FILES:
             canonical = (PROJECT / "skill/ppt-motion" / relative).read_bytes()
             self.assertEqual(codex[f"ppt-motion/skill/ppt-motion/{relative}"], canonical)
             self.assertEqual(code[f"ppt-motion/skill/ppt-motion/{relative}"], canonical)
+            self.assertEqual(openai[f"ppt-motion/skills/ppt-motion/{relative}"], canonical)
             if relative != "SKILL.md":
                 self.assertEqual(desktop[f"ppt-motion/{relative}"], canonical)
         self.assertEqual(desktop["ppt-motion/SKILL.md"],
@@ -51,16 +53,62 @@ class ReleasePackageTest(unittest.TestCase):
         for payload in (codex, code):
             self.assertIn("ppt-motion/install.py", payload)
             self.assertIn("ppt-motion/examples/make_generic_demo.py", payload)
+            self.assertIn("ppt-motion/docs/usage.md", payload)
         self.assertNotIn("ppt-motion/install.py", desktop)
         self.assertNotIn("ppt-motion/.claude-plugin/plugin.json", desktop)
         self.assertNotIn("ppt-motion/.claude-plugin/plugin.json", codex)
         manifest = json.loads(code["ppt-motion/.claude-plugin/plugin.json"])
         market = json.loads(code["ppt-motion/.claude-plugin/marketplace.json"])
-        self.assertEqual(manifest["version"], "0.4.0")
+        self.assertEqual(manifest["version"], packager.RELEASE_VERSION)
         skill_dir = PurePosixPath("ppt-motion") / manifest["skills"]
         self.assertIn(str(skill_dir / "ppt-motion/SKILL.md"), code)
         self.assertEqual((market["name"], market["plugins"][0]["name"]), ("ppt-motion", "ppt-motion"))
         self.assertEqual(market["plugins"][0]["source"], "./")
+
+    def test_codex_and_portable_plugins_resolve_their_skills_and_assets(self):
+        codex = self.payload("ppt-motion-codex.zip")
+        portable = self.payload("ppt-motion-openai-plugin.zip")
+        self.assertNotIn("ppt-motion/plugin.json", codex)
+        self.assertNotIn("ppt-motion/install.py", portable)
+        root_manifest = json.loads(portable["ppt-motion/plugin.json"])
+        self.assertEqual(root_manifest["$schema"], packager.PORTABLE_SCHEMA)
+        self.assertEqual(root_manifest["name"], "ppt-motion")
+        self.assertEqual(root_manifest["version"], packager.RELEASE_VERSION)
+        self.assertNotIn("skills", root_manifest)
+        self.assertNotIn("mcpServers", root_manifest)
+        self.assertEqual(set(root_manifest["extensions"]), {"com.openai"})
+        extension = root_manifest["extensions"]["com.openai"]
+        self.assertEqual(set(extension), {"interface"})
+        for payload, skills_path in ((codex, "./skill/"), (portable, "./skills/")):
+            with self.subTest(skills_path=skills_path):
+                manifest = json.loads(payload["ppt-motion/.codex-plugin/plugin.json"])
+                self.assertEqual(manifest["name"], "ppt-motion")
+                self.assertEqual(manifest["version"], packager.RELEASE_VERSION)
+                self.assertEqual(manifest["skills"], skills_path)
+                self.assertEqual(manifest["interface"], extension["interface"])
+                self.assertFalse({"apps", "mcpServers", "hooks"} & manifest.keys())
+                skill_root = PurePosixPath("ppt-motion") / skills_path / "ppt-motion"
+                for relative in packager.SKILL_FILES:
+                    self.assertIn(str(skill_root / relative), payload)
+                for field in ("composerIcon", "logo"):
+                    self.assertIn(str(PurePosixPath("ppt-motion") / manifest["interface"][field]), payload)
+        market = json.loads(codex["ppt-motion/.agents/plugins/marketplace.json"])
+        self.assertEqual(market["name"], "ppt-motion")
+        self.assertEqual(market["plugins"][0]["source"], packager.PLUGIN_GIT_SOURCE)
+        self.assertNotIn("ppt-motion/.agents/plugins/marketplace.json", portable)
+        # Exactly one engine in each artifact; remapping never duplicates it.
+        for name in packager.ARCHIVES:
+            self.assertEqual(sum(path.endswith("/scripts/ppt_motion.py")
+                                 for path in self.payload(name)), 1)
+
+    def test_portable_script_runs_after_extracting_without_repository(self):
+        with zipfile.ZipFile(self.out / "ppt-motion-openai-plugin.zip") as archive:
+            archive.extractall(self.work / "openai")
+        result = subprocess.run([
+            sys.executable, str(self.work / "openai/ppt-motion/skills/ppt-motion/scripts/run.py"), "--help",
+        ], cwd=self.work, capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("export-html", result.stdout)
 
     def test_extracted_local_client_packages_install_without_repository(self):
         for client in ("codex", "claude-code"):
@@ -119,7 +167,8 @@ class ReleasePackageTest(unittest.TestCase):
 
     def fixture_repo(self):
         root = self.work / "fixture"
-        paths = [*packager.COMMON_FILES, *packager.CLAUDE_FILES,
+        paths = [*packager.COMMON_FILES, *packager.CLAUDE_FILES, *packager.CODEX_FILES,
+                 *packager.PLUGIN_ASSETS,
                  "clients/claude-desktop/SKILL.md",
                  *(f"skill/ppt-motion/{name}" for name in packager.SKILL_FILES),
                  *(name for name in packager.OPTIONAL_NOTICE_FILES if (PROJECT / name).exists())]
@@ -137,6 +186,7 @@ class ReleasePackageTest(unittest.TestCase):
             "skill/ppt-motion/scripts/secret.py", "skill/ppt-motion/references/private.md",
             "skill/ppt-motion/assets/private.svg", "skill/ppt-motion/.venv/credentials.txt",
             "dist/releases/old.zip", "runtime/cache.txt",
+            "assets/private.svg", "docs/private.md", ".codex-plugin/credentials.json",
         ):
             target = root / relative
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -170,6 +220,21 @@ class ReleasePackageTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Engine VERSION must match"):
             packager.build_release(root, self.work / "version-drift")
         self.assertFalse((self.work / "version-drift").exists())
+
+    def test_codex_manifest_and_marketplace_drift_fail_before_packaging(self):
+        for relative, update, message in (
+            (".codex-plugin/plugin.json", {"version": "0.0.0"}, "Codex plugin name/version/skills"),
+            (".codex-plugin/plugin.json", {"skills": "./missing/"}, "Codex plugin name/version/skills"),
+            (".agents/plugins/marketplace.json", {"plugins": []}, "Codex marketplace"),
+        ):
+            with self.subTest(relative=relative, update=update):
+                root = self.fixture_repo()
+                path = root / relative
+                manifest = json.loads(path.read_text(encoding="utf-8"))
+                path.write_text(json.dumps({**manifest, **update}), encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, message):
+                    packager.build_release(root, self.work / "codex-drift")
+                self.assertFalse((self.work / "codex-drift").exists())
 
 
 if __name__ == "__main__":
