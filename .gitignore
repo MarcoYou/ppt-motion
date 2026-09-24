@@ -1,0 +1,24 @@
+# Python and local environment
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+.DS_Store
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Private source decks and generated jobs
+*.pdf
+*.pptx
+*.ppt
+/qa/
+/jobs/
+/dist/
+/examples/nps-demo/
+/examples/configure_nps.py

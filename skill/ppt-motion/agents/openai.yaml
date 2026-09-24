@@ -1,0 +1,4 @@
+interface:
+  display_name: "PPT Motion"
+  short_description: "Animate and emphasize titles, text, tables and charts"
+  default_prompt: "Use $ppt-motion to preserve this deck’s design, keep tables readable, animate useful chart elements, and emphasize each slide’s key message."

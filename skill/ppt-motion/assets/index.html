@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>PPT Motion</title>
+  <link rel="stylesheet" href="viewer.css">
+  <script src="viewer.js" defer></script>
+</head>
+<body>
+  <header class="toolbar">
+    <div class="deck-name" id="deck-title">PPT Motion</div>
+    <nav class="navigation" aria-label="슬라이드 이동">
+      <button id="previous" type="button" aria-label="이전 슬라이드">←</button>
+      <select id="slide-select" aria-label="슬라이드 선택"></select>
+      <button id="next" type="button" aria-label="다음 슬라이드">→</button>
+    </nav>
+    <div class="tools" aria-label="발표 도구">
+      <button id="replay" type="button" title="다시 재생 (R)">다시 재생</button>
+      <button id="motion" type="button" aria-pressed="true">효과 켬</button>
+      <button id="emphasis" type="button" aria-pressed="true">강조 켬</button>
+      <button id="inspect" type="button" aria-pressed="false">요소 선택</button>
+      <button id="compare" type="button" aria-pressed="false">원본 비교</button>
+      <button id="fullscreen" type="button" title="전체화면 (F)">전체화면</button>
+    </div>
+  </header>
+  <main id="workbench" class="workbench" aria-label="발표자료">
+    <section class="panel current-panel" aria-label="애니메이션 슬라이드">
+      <div class="panel-label" id="current-label">발표 화면</div>
+      <div class="canvas-wrapper" id="current-wrapper">
+        <div class="slide" id="stage" aria-live="off"></div>
+      </div>
+    </section>
+    <section class="panel reference-panel" aria-label="원본 PDF" hidden>
+      <div class="panel-label">원본 PDF · 수정 전</div>
+      <div class="canvas-wrapper" id="reference-wrapper">
+        <img class="reference-image" id="reference" alt="원본 슬라이드">
+      </div>
+    </section>
+  </main>
+  <aside id="inspector" class="inspector" hidden>
+    <span id="inspection-hint">슬라이드의 요소를 클릭하면 정확한 ID와 좌표가 표시됩니다.</span>
+    <code id="inspection-result"></code>
+    <button id="copy-id" type="button" hidden>선택 ID 복사</button>
+  </aside>
+  <footer class="caption" id="caption" hidden>
+    <strong id="slide-title"></strong>
+    <p id="slide-message"></p>
+  </footer>
+  <div class="notice" id="notice" role="status" hidden></div>
+  <noscript>이 발표자료를 보려면 JavaScript를 활성화해 주세요.</noscript>
+</body>
+</html>
